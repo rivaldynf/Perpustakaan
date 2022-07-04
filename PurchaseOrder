@@ -1,0 +1,135 @@
+<?php
+
+namespace App\Http\Controllers;
+
+// model
+use App\Models\Brand;
+use App\Models\Config;
+use App\Models\Product;
+use App\Models\Gudang;
+use App\Models\Category;
+use App\Models\Supplier;
+use App\Models\HistoryProducts;
+use App\Models\HistoryProductsDelete;
+// model
+
+use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
+use App\Http\Controllers\AController;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Validator;
+use App\Http\Controllers\HelpersController as Helpers;
+use App\Models\ListProduct;
+use App\Models\PurchaseOrder;
+use App\Models\ListPurchaseOrder;
+use App\Models\Karantina;
+
+
+class PurchaseOrdersController extends Controller
+{
+    public function index()
+    {      
+
+        $this->access = Helpers::checkaccess('purchaseorders', 'view');
+        if(!$this->access) {
+            Session::flash('message', "you don't have permission to access");
+            return redirect('/dashboard');  
+        }
+        $products = Product::get();
+        $satuan = Helpers::satuan();
+        
+        return view('purchaseorders.index', array(
+            'products' => $products,
+            'satuan' => $satuan,
+            'suppliers' => Supplier::all(),
+            'purchase_order' => PurchaseOrder::all(),
+            'list_purchase_order' => ListPurchaseOrder::all(),
+            'karantina' => Karantina::all(),
+
+        ));        
+    }
+
+    public function apiSearch(Request $request)
+    {
+        // dd($request);
+        // $data = [];
+        // if ($request->has('q')) {
+        //     $search = $request->q;
+        //     $data = Product::select("id","nama")->where('nama','LIKE',"%$search%")->get();
+        // }
+
+        // $p = $request->get('query');
+        // dd($p);
+        // $data = Product::select("id", "nama")
+        //         ->where("nama","LIKE","%{$p}%")
+        //         ->get();
+
+        $search = $request->search;
+        if($search == "")
+        {
+            $products = Product::orderby('nama','asc')->select('id','nama')->limit(4)->get();
+        } else {
+            $products = Product::orderby('nama','asc')->select('id','nama')->where('nama', 'like', '%' .$search . '%')->limit(4)->get();
+        }
+
+        $response = array();
+        foreach($products as $value){
+            $response[] = array("value" => $value->id, "label" => $value->nama);
+        }
+
+        return response()->json($response);
+    }    
+
+    public function apiGetData(Request $request)
+    {
+        $this->access = Helpers::checkaccess('purchaseorders', 'view');		
+        if(!$this->access) return response()->json(['data' => [], 'status' => '401'], 200);
+
+        if($request->no_purchase_order	 != null || $request->products_id != null || $request->satuan != null || $request->slug != null || $request->active != null ) 
+        {
+            $whereraw = '';
+            
+            if($request->no_purchase_order	 != null) $whereraw .= " and no_purchase_order	 like '%$request->no_purchase_order	%'";
+            if($request->products_id != null) $whereraw .= " and products_id like '%$request->products_id%'";
+            if($request->satuan != null) $whereraw .= " and satuan like '%$request->satuan%'";
+            if($request->slug != null) $whereraw .= " and slug like '%$request->slug%'";
+            if($request->active != null) $whereraw .= " and active = $request->active";
+
+    		$whereraw = preg_replace('/ and/', '', $whereraw, 1); // replace first and
+            $purchaseOrder = PurchaseOrder::whereRaw($whereraw)->get();    	
+        } else {
+            $purchaseOrder = PurchaseOrder::get();
+        }
+
+        $datas = [];
+        foreach($purchaseOrder as $key => $value)
+        {
+            $datas[$key] = [
+                '',
+            ];
+        }
+        return response()->json(['data' => $datas, 'status' => '200'], 200);
+    }
+
+    public function apiInsertData(Request $request)
+    {
+        $this->access = Helpers::checkaccess('purchaseorders', 'add');
+        if(!$this->access) return response()->json(['data' => ['false'], 'status' => '401'], 200);
+
+        // dd($request);
+        $validator = Validator::make($request->all(), [
+            
+        ], [
+            
+        ]);
+
+        if($validator->fails()) {
+            return response()->json(['errors'=> $validator->errors()->all()]);
+        }
+
+        $datas = new PurchaseOrder();
+        $datas->nama = $request->nama;       
+    }
+}
